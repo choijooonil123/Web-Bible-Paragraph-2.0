@@ -204,7 +204,7 @@
 
   <script>
     /* --------- Utils --------- */
-    const AI_ENDPOINT = '/api/unit-context'; // 서버(또는 서버리스) 주소
+    const AI_ENDPOINT = 'http://localhost:5174/api/unit-context';
     const el = id => document.getElementById(id);
     const treeEl = el('tree'), statusEl = el('status');
     function status(msg){ statusEl.textContent = msg; }
