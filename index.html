@@ -188,6 +188,7 @@
         <div class="editor-bar">
           <input type="file" id="sermonImages" accept="image/*" multiple />
           <div class="grow"></div>
+          <button id="aiFill" style="display:none">AI로 채우기</button>
           <button id="editorSpeak" class="primary">낭독</button>
           <button id="saveSermon" class="primary">저장</button>
           <button id="cancelEdit">취소</button>
@@ -203,6 +204,7 @@
 
   <script>
     /* --------- Utils --------- */
+    const AI_ENDPOINT = '/api/unit-context'; // 서버(또는 서버리스) 주소
     const el = id => document.getElementById(id);
     const treeEl = el('tree'), statusEl = el('status');
     function status(msg){ statusEl.textContent = msg; }
@@ -789,6 +791,60 @@
 
       sermonEditor.dataset.editing = '';
       sermonEditor.dataset.ctxType = kind;
+      // === [AI로 채우기] 버튼 표시/비표시 및 클릭 핸들러 ===
+      const aiBtn = document.getElementById('aiFill');
+      if (aiBtn) {
+        aiBtn.style.display = (kind === 'unit') ? '' : 'none';
+      
+        // 기존 핸들러 제거 후 재바인딩(다른 kind에서 남아있을 수 있어요)
+        aiBtn.onclick = null;
+      
+        if (kind === 'unit') {
+          aiBtn.onclick = async ()=> {
+            try{
+              aiBtn.disabled = true;
+              aiBtn.textContent = 'AI 생성 중…';
+      
+              const para = BIBLE.books[CURRENT.book][CURRENT.chap].paras[CURRENT.paraIdx];
+              const payload = {
+                kind: 'unit',
+                book: CURRENT.book,
+                chapter: CURRENT.chap,
+                ref: para.ref,
+                title: para.title || '',
+                verses: (para.verses || []).map(([v,t]) => ({ verse: v, text: t })),
+              };
+      
+              const res = await fetch(AI_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type':'application/json' },
+                body: JSON.stringify(payload)
+              });
+              if(!res.ok){
+                const msg = await res.text().catch(()=> '');
+                throw new Error(`AI 응답 오류(${res.status}) ${msg}`);
+              }
+              const data = await res.json(); // { ok:true, text:"..." }
+              if(!data || !data.text) throw new Error('AI 응답이 비었습니다.');
+      
+              // 본문에 주입(덮어쓰기; 기존 내용 보존하려면 아래 줄을 주석 처리하고 append 방식으로 바꾸세요)
+              sermonBody.value = data.text.trim();
+      
+              // 👉 이어붙이기를 원하시면 아래 주석 해제하고 위 줄 주석 처리:
+              // sermonBody.value = (sermonBody.value.trim() ? sermonBody.value.trim() + '\n\n' : '') + data.text.trim();
+      
+              status('AI가 단위성경속 맥락을 채웠습니다.');
+            }catch(err){
+              console.error(err);
+              alert('AI 생성 중 오류가 발생했습니다.\n' + (err?.message||err));
+            }finally{
+              aiBtn.disabled = false;
+              aiBtn.textContent = 'AI로 채우기';
+            }
+          };
+        }
+      }
+
     }
 
     function renderSermonList(){
